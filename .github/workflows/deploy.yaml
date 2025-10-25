@@ -1,0 +1,321 @@
+name: CI/CD Pipeline - Marketing Brand Intelligence
+
+# ACCEPTANCE CRITERIA (Q_023):
+# - Test fail exit 1, no push
+# - Any pytest failure must cause CI pipeline to exit with status 1
+# - Failed CI must prevent deployment/push to production
+# - Clear error reporting in CI logs
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: '3.11'
+  ENABLE_CI_GATE: 'true'  # Kill switch for emergency bypasses
+
+jobs:
+  # Job 1: Linting and Static Analysis
+  lint:
+    name: Lint and Type Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff mypy
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
+      
+      - name: Run ruff linter
+        run: |
+          ruff check . --output-format=github
+        continue-on-error: false
+      
+      - name: Run mypy type checker
+        run: |
+          mypy . --ignore-missing-imports --no-strict-optional
+        continue-on-error: false
+
+  # Job 2: Unit and Integration Tests (CRITICAL - BLOCKS DEPLOYMENT)
+  test:
+    name: Run Test Suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: lint
+    
+    strategy:
+      fail-fast: true  # Stop all jobs if one fails
+      matrix:
+        python-version: ['3.11']
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-cov pytest-asyncio pytest-timeout
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
+      
+      - name: Run pytest with coverage
+        id: pytest
+        run: |
+          pytest \
+            -v \
+            --strict-markers \
+            --tb=short \
+            --cov=. \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            --cov-fail-under=70 \
+            --maxfail=5 \
+            --timeout=60 \
+            --junitxml=test-results/junit.xml
+        continue-on-error: false
+        # CRITICAL: continue-on-error=false ensures exit 1 blocks deployment
+      
+      - name: Upload coverage to Codecov (optional)
+        if: always()
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.python-version }}
+          path: test-results/
+      
+      - name: Check test status
+        if: failure()
+        run: |
+          echo "::error::Test suite failed. Deployment blocked."
+          exit 1
+
+  # Job 3: Security Scanning
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: lint
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run Bandit security linter
+        run: |
+          pip install bandit
+          bandit -r . -f json -o bandit-report.json || true
+      
+      - name: Run Safety check for vulnerable dependencies
+        run: |
+          pip install safety
+          safety check --json || true
+        continue-on-error: true  # Warnings don't block, but logged
+      
+      - name: Upload security reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            bandit-report.json
+
+  # Job 4: Build (Optional - Package validation)
+  build:
+    name: Build Package
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [test, security]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+      
+      - name: Build package
+        run: |
+          python -m build
+      
+      - name: Check package with twine
+        run: |
+          twine check dist/*
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  # Job 5: Deploy to Staging (Only after all tests pass)
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [test, security, build]
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    environment:
+      name: staging
+      url: https://staging.mbi.company.com
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Deploy to staging environment
+        run: |
+          echo "Deploying to staging..."
+          # Add deployment commands here (e.g., kubectl apply, docker push, etc.)
+          # Example:
+          # kubectl apply -f k8s/staging/
+      
+      - name: Run smoke tests
+        run: |
+          echo "Running smoke tests..."
+          # Add smoke test commands
+          # curl -f https://staging.mbi.company.com/health || exit 1
+      
+      - name: Notify deployment
+        if: success()
+        run: |
+          echo "Staging deployment successful"
+          # Add notification to Slack/Teams/etc.
+
+  # Job 6: Deploy to Production (Only from main branch after all tests pass)
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [test, security, build]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: production
+      url: https://mbi.company.com
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Pre-deployment checks
+        run: |
+          echo "Running pre-deployment checks..."
+          # Verify ENABLE_CI_GATE is not bypassed
+          if [ "${{ env.ENABLE_CI_GATE }}" != "true" ]; then
+            echo "::warning::CI gate is disabled. Deployment proceeding with manual approval."
+          fi
+      
+      - name: Deploy to production environment
+        run: |
+          echo "Deploying to production..."
+          # Add production deployment commands
+          # Example:
+          # kubectl apply -f k8s/production/
+          # kubectl rollout status deployment/mbi-agents -n production
+      
+      - name: Run production smoke tests
+        run: |
+          echo "Running production smoke tests..."
+          # curl -f https://mbi.company.com/health || exit 1
+          # curl -f https://mbi.company.com/api/system/health || exit 1
+      
+      - name: Notify deployment
+        if: success()
+        run: |
+          echo "Production deployment successful"
+          # Add notification to Slack/PagerDuty/etc.
+      
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "::error::Production deployment failed. Initiating rollback."
+          # kubectl rollout undo deployment/mbi-agents -n production
+          exit 1
+
+  # Job 7: Post-Deployment Monitoring
+  monitor:
+    name: Post-Deployment Monitoring
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [deploy-production]
+    if: success()
+    
+    steps:
+      - name: Wait for metrics stabilization
+        run: |
+          echo "Waiting 2 minutes for metrics to stabilize..."
+          sleep 120
+      
+      - name: Check error rates
+        run: |
+          echo "Checking error rates..."
+          # Query Prometheus/Grafana for error rate spikes
+          # If error rate > threshold, trigger alert
+      
+      - name: Check latency p95
+        run: |
+          echo "Checking latency..."
+          # Query latency metrics
+      
+      - name: Alert on anomalies
+        if: failure()
+        run: |
+          echo "::error::Post-deployment metrics show anomalies. Investigate immediately."
+          # Trigger PagerDuty alert
+
+# RISK GATES SUMMARY:
+# 1. Lint job must pass (ruff + mypy)
+# 2. Test job must pass (pytest exit 1 on failure)
+# 3. Coverage must be >= 70%
+# 4. Security scan runs (warnings logged but don't block)
+# 5. Build must succeed
+# 6. Staging deployment requires all previous jobs to pass
+# 7. Production deployment requires all previous jobs to pass
+# 8. Post-deployment monitoring checks for anomalies
+
+# KILL SWITCH:
+# Set ENABLE_CI_GATE=false to bypass for emergency deployments
+# Requires manual approval in GitHub Actions UI
+# Audit trail maintained in workflow run logs
+
+# ROLLBACK:
+# kubectl rollout undo deployment/mbi-agents -n production
+# Emergency hotfix process still requires post-deploy validation

@@ -1,0 +1,121 @@
+# Circuit Breaker Configuration
+# Per-API endpoint circuit breaker settings
+# Q_032: Circuit breakers for external API resilience
+
+circuit_breakers:
+  # Meta Ads API
+  meta_ads_api:
+    enabled: true
+    failure_threshold: 5  # Open after 5 failures
+    timeout_seconds: 60  # Count failures within 60s window
+    recovery_timeout_seconds: 30  # Wait 30s before retry
+    fallback_response:
+      status: "degraded"
+      message: "Meta Ads API temporarily unavailable"
+      data: []
+  
+  # Google Ads API
+  google_ads_api:
+    enabled: true
+    failure_threshold: 5
+    timeout_seconds: 60
+    recovery_timeout_seconds: 30
+    fallback_response:
+      status: "degraded"
+      message: "Google Ads API temporarily unavailable"
+      data: []
+  
+  # TikTok Ads API
+  tiktok_ads_api:
+    enabled: true
+    failure_threshold: 5
+    timeout_seconds: 60
+    recovery_timeout_seconds: 30
+    fallback_response:
+      status: "degraded"
+      message: "TikTok Ads API temporarily unavailable"
+      data: []
+  
+  # YouTube Ads API (Google backend)
+  youtube_ads_api:
+    enabled: true
+    failure_threshold: 5
+    timeout_seconds: 60
+    recovery_timeout_seconds: 30
+    fallback_response:
+      status: "degraded"
+      message: "YouTube Ads API temporarily unavailable"
+      data: []
+  
+  # LinkedIn Ads API
+  linkedin_ads_api:
+    enabled: true
+    failure_threshold: 5
+    timeout_seconds: 60
+    recovery_timeout_seconds: 30
+    fallback_response:
+      status: "degraded"
+      message: "LinkedIn Ads API temporarily unavailable"
+      data: []
+  
+  # Twitter/X Ads API
+  twitter_ads_api:
+    enabled: true
+    failure_threshold: 5
+    timeout_seconds: 60
+    recovery_timeout_seconds: 30
+    fallback_response:
+      status: "degraded"
+      message: "Twitter Ads API temporarily unavailable"
+      data: []
+  
+  # GA4 BigQuery Export (Google backend)
+  ga4_bigquery:
+    enabled: true
+    failure_threshold: 3  # More sensitive for data pipeline
+    timeout_seconds: 300  # Longer window for batch operations
+    recovery_timeout_seconds: 60
+    fallback_response:
+      status: "degraded"
+      message: "GA4 BigQuery temporarily unavailable"
+      data: []
+  
+  # Shopify API
+  shopify_api:
+    enabled: true
+    failure_threshold: 5
+    timeout_seconds: 60
+    recovery_timeout_seconds: 30
+    fallback_response:
+      status: "degraded"
+      message: "Shopify API temporarily unavailable"
+      data: []
+  
+  # LLM APIs (Claude/OpenAI)
+  llm_api:
+    enabled: true
+    failure_threshold: 3  # More sensitive for LLM calls
+    timeout_seconds: 60
+    recovery_timeout_seconds: 45
+    fallback_response:
+      status: "degraded"
+      message: "LLM API temporarily unavailable. Using cached analysis."
+      data: null
+
+# Global settings
+global:
+  # Enable circuit breakers globally
+  enabled: true
+  
+  # Default config for new endpoints
+  default_failure_threshold: 5
+  default_timeout_seconds: 60
+  default_recovery_timeout_seconds: 30
+  
+  # Observability
+  metrics_enabled: true
+  log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  
+  # Admin endpoints
+  admin_reset_enabled: false  # Disable manual reset in production
+  health_check_interval_seconds: 10

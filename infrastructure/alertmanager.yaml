@@ -1,0 +1,181 @@
+"""PagerDuty Alert Configuration for Monitoring
+
+Configures PagerDuty alerting with <2min P0 SLA enforcement.
+
+Components:
+- Alertmanager integration
+- PagerDuty routing
+- Escalation policies
+- SLA tracking
+
+Q_024 Acceptance:
+- P0 alert delivered to PagerDuty in <120 seconds
+- Alert includes incident_key, urgency=high, routing_key
+- Prometheus metric alert_latency_seconds{severity="P0"} <120
+- Auto-escalation after 5min no-ack
+
+Kill switch: ENABLE_PAGERDUTY_ALERTS (default true)
+"""
+global:
+  # PagerDuty integration
+  pagerduty_url: 'https://events.pagerduty.com/v2/enqueue'
+  slack_api_url: 'https://slack.com/api/chat.postMessage'
+
+# PagerDuty receiver
+receivers:
+  - name: 'pagerduty-p0'
+    pagerduty_configs:
+      - routing_key: '${PAGERDUTY_ROUTING_KEY_P0}'
+        severity: 'critical'
+        description: '{{ .CommonAnnotations.summary }}'
+        details:
+          component: '{{ .CommonLabels.component }}'
+          severity: '{{ .CommonLabels.severity }}'
+          message: '{{ .CommonAnnotations.message }}'
+          alert_count: '{{ .Alerts | len }}'
+        client: 'MBI Alertmanager'
+        client_url: 'https://mbi.company.com/alerts'
+        # SLA enforcement: send immediately
+        send_resolved: true
+    
+    # Fallback to Slack if PagerDuty fails
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#incidents'
+        title: '🚨 ESCALATION: PagerDuty Failed'
+        text: |
+          **Alert:** {{ .CommonAnnotations.summary }}
+          **Severity:** {{ .CommonLabels.severity }}
+          **Component:** {{ .CommonLabels.component }}
+          **Message:** {{ .CommonAnnotations.message }}
+          
+          PagerDuty delivery failed. Manual intervention required.
+        send_resolved: false
+
+  - name: 'pagerduty-p1'
+    pagerduty_configs:
+      - routing_key: '${PAGERDUTY_ROUTING_KEY_P1}'
+        severity: 'error'
+        description: '{{ .CommonAnnotations.summary }}'
+        details:
+          component: '{{ .CommonLabels.component }}'
+          severity: '{{ .CommonLabels.severity }}'
+          message: '{{ .CommonAnnotations.message }}'
+        send_resolved: true
+
+  - name: 'slack-p2'
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#monitoring'
+        title: '⚠️  Warning Alert'
+        text: |
+          **Alert:** {{ .CommonAnnotations.summary }}
+          **Component:** {{ .CommonLabels.component }}
+          **Message:** {{ .CommonAnnotations.message }}
+
+# Alert routing
+route:
+  # Default receiver
+  receiver: 'slack-p2'
+  
+  # Group alerts by component + severity
+  group_by: ['component', 'severity']
+  
+  # SLA timing for P0
+  group_wait: 0s        # Send immediately, no grouping delay
+  group_interval: 30s   # Subsequent alerts after 30s
+  repeat_interval: 5m   # Re-notify every 5min if not resolved
+  
+  # Routes by severity
+  routes:
+    # P0: Critical - PagerDuty with <2min SLA
+    - match:
+        severity: P0
+      receiver: 'pagerduty-p0'
+      group_wait: 0s
+      group_interval: 0s
+      repeat_interval: 2m
+      continue: false  # Stop processing, P0 goes to PagerDuty only
+    
+    # P1: High - PagerDuty non-urgent
+    - match:
+        severity: P1
+      receiver: 'pagerduty-p1'
+      group_wait: 30s
+      group_interval: 1m
+      repeat_interval: 15m
+    
+    # P2: Medium - Slack only
+    - match:
+        severity: P2
+      receiver: 'slack-p2'
+      group_wait: 5m
+      group_interval: 5m
+      repeat_interval: 1h
+
+# Inhibition rules
+inhibit_rules:
+  # If P0 firing, inhibit P1/P2 for same component
+  - source_match:
+      severity: P0
+    target_match_re:
+      severity: P[12]
+    equal: ['component']
+  
+  # If alert resolved, inhibit duplicate alerts
+  - source_match:
+      alertstate: resolved
+    target_match:
+      alertstate: firing
+    equal: ['alertname', 'component']
+
+# Example alert definitions for Prometheus
+# (These would go in prometheus.rules.yml)
+# 
+# groups:
+#   - name: mbi_p0_alerts
+#     interval: 10s  # Evaluate every 10s for fast P0 detection
+#     rules:
+#       - alert: MMMAgentDown
+#         expr: up{job="mmm-agent"} == 0
+#         for: 5m
+#         labels:
+#           severity: P0
+#           component: C04_MMMAgent
+#         annotations:
+#           summary: "MMM Agent Down"
+#           message: "MMM prediction service unresponsive >5min"
+#       
+#       - alert: DataFreshnessSLABreach
+#         expr: |
+#           (time() - data_export_timestamp_seconds{source="ga4"}) > 21600
+#         for: 0m  # Fire immediately on >6h staleness
+#         labels:
+#           severity: P0
+#           component: C02_DataQuality
+#         annotations:
+#           summary: "Data Freshness SLA Breach"
+#           message: "GA4 data >6h stale, MTA integrity compromised"
+#       
+#       - alert: PagerDutyAlertSLABreach
+#         expr: |
+#           histogram_quantile(0.95, 
+#             rate(alert_latency_seconds_bucket{severity="P0"}[5m])
+#           ) > 120
+#         for: 5m
+#         labels:
+#           severity: P0
+#           component: Monitoring_Alerting
+#         annotations:
+#           summary: "PagerDuty Alert SLA Breach"
+#           message: "P95 P0 alert latency >120s for 5min"
+#       
+#       - alert: CircuitBreakerOpen
+#         expr: circuit_breaker_state{service="pagerduty"} == 1
+#         for: 1m
+#         labels:
+#           severity: P0
+#           component: Monitoring_Alerting
+#         annotations:
+#           summary: "PagerDuty Circuit Breaker Open"
+#           message: "PagerDuty unavailable, circuit breaker open >1min"

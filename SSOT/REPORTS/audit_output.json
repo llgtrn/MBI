@@ -1,0 +1,9 @@
+{
+  "phase": "AUDIT",
+  "fixed": "partial",
+  "queue_empty": false,
+  "reds": 14,
+  "capsule": "updated",
+  "metrics": "updated",
+  "phase_state": "SSOT/REPORTS/phase_state.json"
+}

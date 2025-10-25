@@ -1,0 +1,134 @@
+# config/model_registry.yaml
+# LLM Model Registry and Routing Configuration
+# Implements Q_074: Analyst and Verifier must use different models
+
+registry:
+  # Local/OSS models (zero cost)
+  local_small:
+    tasks: [tagging, sentiment]
+    models:
+      - "oss:e5-base"
+      - "oss:roberta-sentiment"
+    max_tokens: 512
+    cost_per_1k_tokens: 0
+    
+  local_medium:
+    tasks: [nli, rerank, qa_simple]
+    models:
+      - "oss:xlmr-nli-large"
+      - "oss:bge-m3"
+    max_tokens: 1024
+    cost_per_1k_tokens: 0
+    
+  # Managed API models (paid)
+  managed_main:
+    tasks: [summary, creative, complex_reasoning]
+    models:
+      - "anthropic:claude-sonnet-4.5"
+    max_tokens: 800
+    cost_per_1k_tokens: 15
+    temperature: 0.2  # Q_072: Max temperature for determinism
+    
+  managed_verifier:
+    tasks: [policy_check, factual_verify]
+    models:
+      - "anthropic:claude-opus-4"  # Q_074: MUST be different from analyst
+    max_tokens: 600
+    cost_per_1k_tokens: 75
+    temperature: 0.1  # Even stricter for verification
+
+# Embeddings
+embeddings:
+  default: "oss:bge-m3"  # Multilingual: ja/vi/en/zh/ko
+  fallback: "oss:e5-base"
+
+# Reranker
+reranker:
+  default: "oss:miniLM-cross-enc"
+
+# LLM Council Configuration (Q_074: separation enforced)
+council:
+  analyst:
+    model: "anthropic:claude-sonnet-4.5"
+    temperature: 0.2
+    max_tokens: 800
+  
+  verifier:
+    model: "anthropic:claude-opus-4"  # DIFFERENT model (Q_074)
+    temperature: 0.1
+    max_tokens: 600
+  
+  retriever:
+    model: "oss:bge-m3"
+    top_k: 5
+
+# Routing Policy (task -> model selection)
+routing_policy:
+  stance_analysis:
+    primary: local_medium
+    fallback: managed_main
+  
+  crisis_brief:
+    primary: managed_main
+    verify: managed_verifier  # Q_074: separate verifier
+  
+  creative_variants:
+    primary: managed_main
+    verify: managed_verifier  # Q_074: separate verifier
+  
+  qa_internal:
+    primary: local_medium
+    fallback: managed_main
+
+# Validation Rules (Q_072, Q_073, Q_074)
+validation_rules:
+  # Q_074: Analyst and Verifier must be different models
+  analyst_verifier_separation: true
+  
+  # Q_072: Temperature <= 0.2 for all calls
+  max_temperature: 0.2
+  
+  # Q_073: Minimum 2 sources for RAG-only
+  min_sources: 2
+  
+  # Additional safety
+  max_retries: 2
+  timeout_seconds: 30
+  json_schema_validation: true
+  toxicity_check: true
+  pii_detection: true
+
+# Cost Management (FinOps)
+finops:
+  cache_ttl_hours: 24
+  batch_size: 10
+  max_concurrent_calls: 5
+  idempotency_ttl_days: 7
+  
+  # Budget alerts
+  daily_budget_usd: 1000
+  alert_threshold_pct: 80
+
+# Monitoring
+monitoring:
+  emit_metrics: true
+  log_all_calls: true
+  track_violations: true
+  
+  # Prometheus metrics
+  metrics:
+    - name: llm_calls_total
+      type: counter
+      labels: [model, task, status]
+    
+    - name: llm_latency_seconds
+      type: histogram
+      labels: [model, task]
+    
+    - name: llm_cost_usd
+      type: counter
+      labels: [model]
+    
+    - name: llm_guardrail_violations_total
+      type: counter
+      labels: [rule]

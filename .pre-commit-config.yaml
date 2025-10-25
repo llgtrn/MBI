@@ -1,0 +1,41 @@
+# Pre-commit hooks configuration
+# Blocks hardcoded secrets from being committed to git
+# Q_111: Prevents secrets in git history
+
+repos:
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets
+        name: Detect secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: package.lock.json
+        
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-merge-conflict
+      - id: detect-private-key
+        
+  - repo: https://github.com/psf/black
+    rev: 23.12.1
+    hooks:
+      - id: black
+        language_version: python3.11
+        
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        args: ['--profile', 'black']
+
+# Usage:
+# 1. Install: pip install pre-commit
+# 2. Setup: pre-commit install
+# 3. Run manually: pre-commit run --all-files
+# 4. Baseline: detect-secrets scan > .secrets.baseline

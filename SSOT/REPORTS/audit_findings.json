@@ -1,0 +1,87 @@
+{
+  "phase": "AUDIT",
+  "round_id": "20251018T195200Z",
+  "audit_findings": [
+    {
+      "id": "A_005",
+      "finding": "Event_id deduplication not implemented in message_bus.py",
+      "component": "C01_IdentityResolution",
+      "gap": "idempotency",
+      "severity": "MAJOR",
+      "urgency": "P0",
+      "linked_questions": ["Q_058", "Q_108"]
+    },
+    {
+      "id": "A_008",
+      "finding": "Online/offline feature parity tests missing",
+      "component": "C03_FeatureEngineering",
+      "gap": "data_integrity",
+      "severity": "MAJOR",
+      "urgency": "P1",
+      "linked_questions": ["Q_057", "Q_117"]
+    },
+    {
+      "id": "A_010",
+      "finding": "Schema drift detector not active",
+      "component": "C02_DataQuality",
+      "gap": "observability",
+      "severity": "MINOR",
+      "urgency": "P1",
+      "linked_questions": []
+    },
+    {
+      "id": "A_012",
+      "finding": "Freshness SLA monitoring not configured",
+      "component": "C02_DataQuality",
+      "gap": "observability",
+      "severity": "MINOR",
+      "urgency": "P1",
+      "linked_questions": []
+    },
+    {
+      "id": "A_015",
+      "finding": "Audit log immutability not enforced",
+      "component": "Compliance_AuditLog",
+      "gap": "compliance",
+      "severity": "MAJOR",
+      "urgency": "P1",
+      "linked_questions": []
+    },
+    {
+      "id": "A_016",
+      "finding": "Multi-currency revenue handling missing",
+      "component": "DataOps_Revenue",
+      "gap": "data_integrity",
+      "severity": "MAJOR",
+      "urgency": "P1",
+      "linked_questions": []
+    },
+    {
+      "id": "A_017",
+      "finding": "Rate limiting not configured for external APIs",
+      "component": "Infra_RateLimiting",
+      "gap": "risk_gate",
+      "severity": "MAJOR",
+      "urgency": "P1",
+      "linked_questions": ["Q_140"]
+    },
+    {
+      "id": "A_018",
+      "finding": "Asset fingerprinting for duplicate detection missing",
+      "component": "Creative_AssetManagement",
+      "gap": "data_integrity",
+      "severity": "MINOR",
+      "urgency": "P2",
+      "linked_questions": []
+    }
+  ],
+  "coverage_refresh": {
+    "red_count": 29,
+    "green_count": 0,
+    "critical_reds": 15,
+    "green_rate": 0.0
+  },
+  "capsule_updated": true,
+  "audit_backlog_count": 10,
+  "audit_complete": true
+}

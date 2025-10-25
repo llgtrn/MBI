@@ -1,0 +1,105 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+venv/
+env/
+ENV/
+
+# Node
+node_modules/
+.next/
+out/
+build/
+.DS_Store
+*.pem
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Testing
+.coverage
+.pytest_cache/
+coverage/
+*.lcov
+
+# Logs
+logs/
+*.log
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+
+# Docker
+.dockerignore
+
+# MacOS
+.AppleDouble
+.LSOverride
+
+# Jupyter
+.ipynb_checkpoints
+
+# Models
+models/*.pkl
+models/*.joblib
+models/*.h5
+*.onnx
+
+# Data
+data/raw/*
+data/processed/*
+!data/.gitkeep
+
+# Secrets
+secrets/
+*.key
+*.pem
+*.p12
+credentials.json
+
+# Temp
+tmp/
+temp/

@@ -1,0 +1,18 @@
+{
+  "green_rate": 0.0,
+  "critical_green_rate": 0.0,
+  "artifact_coverage": 0.156,
+  "remaining_percent_by_component": 100.0,
+  "remaining_percent_by_artifact": 84.4,
+  "total_components": 16,
+  "red_count": 15,
+  "yellow_count": 1,
+  "green_count": 0,
+  "critical_path_red_count": 5,
+  "critical_path_total": 6,
+  "open_questions_count": 8,
+  "unclear_questions_count": 0,
+  "open_audits_count": 2,
+  "linked_qa_pairs_count": 8,
+  "timestamp": "2025-10-19T20:40:00Z"
+}
